@@ -1,36 +1,28 @@
 #!/usr/bin/python3
-"""
- a Fabric script (based on the file 3-deploy_web_static.py)
- that deletes out-of-date archives, using the function do_clean
-"""
-
+# Fabfile to delete out-of-date archives.
+import os
 from fabric.api import *
-from os.path import exists
-from os import getenv, environ
-from datetime import datetime
 
-env.hosts = ['100.25.165.191', '3.83.245.148']
-env.user = 'ubuntu'
-env.key_filename = '/home/~/.ssh/id_rsa'
+env.hosts = ["54.160.85.72", "35.175.132.106"]
 
 
 def do_clean(number=0):
-    """Deletes out-of-date archives"""
-    number = int(number)
-    number = 1 if number <= 1 else number
+    """Delete out-of-date archives.
+    Args:
+        number (int): The number of archives to keep.
+    If number is 0 or 1, keeps only the most recent archive. If
+    number is 2, keeps the most and second-most recent archives,
+    etc.
+    """
+    number = 1 if int(number) == 0 else int(number)
 
-    run_locally = getenv("run_locally", None)
-    if run_locally is None:
-        with lcd("versions"):
-            local(f"$(ls -t | tail -n +{1 + number} | sudo xargs -- rm -rf)")
-        with lcd("/data/web_static/releases"):
-            local(f"$(ls -t | tail -n +{1 + number} \
-| grep -v 'test' | sudo xargs rm -rf)")
-        environ['run_locally'] = "True"
-        print("Deleted outdated archives locally")
+    archives = sorted(os.listdir("versions"))
+    [archives.pop() for i in range(number)]
+    with lcd("versions"):
+        [local("rm ./{}".format(a)) for a in archives]
 
     with cd("/data/web_static/releases"):
-        sudo(f"$(ls -t | tail -n +{1 + number} \
-| grep -v 'test' | xargs rm -rf)")
-
-    print("Outdated archives completely deleted!")
+        archives = run("ls -tr").split()
+        archives = [a for a in archives if "web_static_" in a]
+        [archives.pop() for i in range(number)]
+        [run("rm -rf ./{}".format(a)) for a in archives]

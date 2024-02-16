@@ -1,43 +1,38 @@
 #!/usr/bin/env bash
-# a Bash script that sets up your web servers for the deployment of web_static.
+# Sets up a web server for deployment of web_static.
 
-# Installing Nginx and configuring firewall
-if ! command -v nginx; then
-    sudo apt-get update &>/dev/null
-    echo "Installing Nginx"
-    sudo apt-get -y install nginx &>/dev/null
-    sudo uwf allow 'Nginx HTTP' &>/dev/null
-fi
+apt-get update
+apt-get install -y nginx
 
-# configure the Nginx config file to deploy static files
-dir_1="/data/web_static/releases/test/"
-symlink="/data/web_static/current"
-dir_2="/data/web_static/shared/"
+mkdir -p /data/web_static/releases/test/
+mkdir -p /data/web_static/shared/
+echo "Holberton School" > /data/web_static/releases/test/index.html
+ln -sf /data/web_static/releases/test/ /data/web_static/current
 
-if ! [ -d "$dir_1" ]; then
-    sudo mkdir -p "$dir_1"
-    sudo sh -c 'echo "<html><head></head><body>Holberton School</body></html>" > /data/web_static/releases/test/index.html'
-fi
+chown -R ubuntu /data/
+chgrp -R ubuntu /data/
 
-if ! [ -d "$dir_2" ]; then
-        sudo mkdir -p "$dir_2"
-fi
+printf %s "server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    add_header X-Served-By $HOSTNAME;
+    root   /var/www/html;
+    index  index.html index.htm;
 
-if [ -e "$symlink" ]; then
-    sudo rm -rf "$symlink"
-    sudo ln -s "$dir_1" "$symlink"
-else
-    sudo ln -s "$dir_1" "$symlink"
-fi
+    location /hbnb_static {
+	alias /data/web_static/current;
+	index index.html index.htm;
+    }
 
-sudo chown -R ubuntu:ubuntu /data/
+    location /redirect_me {
+	return 301 http://cuberule.com/;
+    }
 
-if ! cat < /etc/nginx/sites-enabled/default | grep -q "olisabelema.tech"; then
-    sudo sed -i '0,/^\(\s*\)server_name\s*.*$/s//\1server_name olisabelema.tech www.olisabelema.tech;/' /etc/nginx/sites-available/default
-    sudo sed -i '0,/^\(\s*\)server_name olisabelema.tech www.olisabelema.tech;$/s//&\n\n\1location \/hbnb_static {\n\1\1alias \/data\/web_static\/current\/;\n\1\1autoindex off;\n\1}/' /etc/nginx/sites-available/default
-fi
+    error_page 404 /404.html;
+    location /404 {
+      root /var/www/html;
+      internal;
+    }
+}" > /etc/nginx/sites-available/default
 
-# Restarting Nginx
-sudo service nginx restart;
-
-echo "All Done!"
+service nginx restart
